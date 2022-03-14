@@ -6,6 +6,7 @@ import {
   uploadBytesResumable,
   getDownloadURL,
 } from 'firebase/storage'
+import { addDoc, collection, serverTimestamp } from "firebase/firestore"
 import {db} from '../firebase.config'
 import {v4 as uuidv4} from 'uuid'
 import { useNavigate } from "react-router-dom"
@@ -96,7 +97,6 @@ function CreateListing() {
     else {
       geoLocation.lat = latitude
       geoLocation.lng = longitude
-      location = address
     }
 
     // Store image in firebase
@@ -150,9 +150,24 @@ function CreateListing() {
       })
 
 
-    console.log(imgUrls)
+    const formDataCopy = {
+      ...formData,
+      imgUrls,
+      geoLocation,
+      timestamp: serverTimestamp()
+    }
+
+    formDataCopy.location = address
+    delete formDataCopy.images
+    delete formDataCopy.address
+    !formDataCopy.offer && delete formDataCopy.discountedPrice
+
+    const docRef = await addDoc(collection(db, 'listings'), formDataCopy)
 
     setLoading(false)
+
+    toast.success('Listing saved')
+    navigate(`/category/${formDataCopy.type}/${docRef.id}`)
   }
 
   const onMutate = (e) => {
