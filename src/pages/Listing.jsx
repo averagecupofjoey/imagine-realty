@@ -29,7 +29,6 @@ function Listing() {
         console.log(docSnap.data())
         setListing(docSnap.data())
         setLoading(false)
-        console.log("******", listing)
       }
     }
 
@@ -79,7 +78,7 @@ function Listing() {
                 </p>
         <p className="listingLocation">{listing.location}</p>
         <p className="listingType">
-          For {listing.type == 'rent' ? 'Rent' : 'Sale'}
+          For {listing.type === 'rent' ? 'Rent' : 'Sale'}
         </p>
 
         {listing.offer && (

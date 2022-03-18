@@ -15,6 +15,7 @@ import { toast } from "react-toastify"
 
 
 function EditListing() {
+  // eslint-disable-next-line
   const [geolocationEnabled, setGeolocationEnabled] = useState(true)
 
   const [loading, setLoading] = useState(false)
@@ -88,6 +89,7 @@ function EditListing() {
     return () => {
       isMounted.current = false
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isMounted])
 
   const onSubmit = async (e) => {
