@@ -73,7 +73,7 @@ function CreateListing() {
       return
     }
 
-    let geoLocation = {}
+    let geolocation = {}
     let location
 
     if(geolocationEnabled){
@@ -83,8 +83,8 @@ function CreateListing() {
 
       const data = await response.json()
 
-      geoLocation.lat = data.results[0]?.geometry.location.lat ?? 0
-      geoLocation.lng = data.results[0]?.geometry.location.lng ?? 0
+      geolocation.lat = data.results[0]?.geometry.location.lat ?? 0
+      geolocation.lng = data.results[0]?.geometry.location.lng ?? 0
 
       location = data.status === 'ZERO_RESULTS' ? undefined : data.results[0]?.formatted_address
 
@@ -95,8 +95,8 @@ function CreateListing() {
       }
     }
     else {
-      geoLocation.lat = latitude
-      geoLocation.lng = longitude
+      geolocation.lat = latitude
+      geolocation.lng = longitude
     }
 
     // Store image in firebase
@@ -153,7 +153,7 @@ function CreateListing() {
     const formDataCopy = {
       ...formData,
       imgUrls,
-      geoLocation,
+      geolocation,
       timestamp: serverTimestamp()
     }
 
