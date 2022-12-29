@@ -12,6 +12,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { useNavigate } from 'react-router-dom';
 import Spinner from '../components/Spinner';
 import { toast } from 'react-toastify';
+// import { https } from 'node:https';
+import axios from 'axios';
 
 function CreateListing() {
   // eslint-disable-next-line
@@ -96,18 +98,18 @@ function CreateListing() {
 
     if (geolocationEnabled) {
       const response = await fetch(
-        `http://api.positionstack.com/v1/forward?access_key=${process.env.REACT_APP_POSITION_STACK_API_KEY}&query=${address}`
+        `https://nominatim.openstreetmap.org/?addressdetails=1&q=${address}&format=json&limit=1`
       );
 
       const data = await response.json();
 
-      foundLatitude = data.data[0]?.latitude ?? 0;
-      foundLongitude = data.data[0]?.longitude ?? 0;
+      foundLatitude = data[0]?.lat ?? 0;
+      foundLongitude = data[0]?.lon ?? 0;
 
       geolocation.lat = foundLatitude;
       geolocation.lng = foundLongitude;
 
-      location = data.data[0] ? data.data[0]?.label : undefined;
+      location = data[0] ? data[0]?.display_name : undefined;
 
       if (location === undefined || location.includes('undefined')) {
         setLoading(false);
@@ -203,8 +205,6 @@ function CreateListing() {
     delete formDataCopy.images;
     delete formDataCopy.address;
     !formDataCopy.offer && delete formDataCopy.discountedPrice;
-
-    console.log('######', formDataCopy);
 
     const docRef = await addDoc(collection(db, 'listings'), formDataCopy);
 
