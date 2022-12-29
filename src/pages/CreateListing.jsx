@@ -1,24 +1,23 @@
-import { useState, useEffect, useRef } from "react"
-import { getAuth, onAuthStateChanged } from "firebase/auth"
+import { useState, useEffect, useRef } from 'react';
+import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import {
   getStorage,
   ref,
   uploadBytesResumable,
   getDownloadURL,
-} from 'firebase/storage'
-import { addDoc, collection, serverTimestamp } from "firebase/firestore"
-import {db} from '../firebase.config'
-import {v4 as uuidv4} from 'uuid'
-import { useNavigate } from "react-router-dom"
-import Spinner from "../components/Spinner"
-import { toast } from "react-toastify"
-
+} from 'firebase/storage';
+import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { db } from '../firebase.config';
+import { v4 as uuidv4 } from 'uuid';
+import { useNavigate } from 'react-router-dom';
+import Spinner from '../components/Spinner';
+import { toast } from 'react-toastify';
 
 function CreateListing() {
   // eslint-disable-next-line
-  const [geolocationEnabled, setGeolocationEnabled] = useState(true)
+  const [geolocationEnabled, setGeolocationEnabled] = useState(true);
 
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(false);
 
   const [formData, setFormData] = useState({
     type: 'rent',
@@ -27,195 +26,251 @@ function CreateListing() {
     bathrooms: 1,
     parking: false,
     furnished: false,
-    address: "",
+    address: '',
     offer: false,
     regularPrice: 0,
     discountedPrice: 0,
     images: {},
     latitude: 0,
-    longitude: 0
-  })
+    longitude: 0,
+  });
 
-  const {type, name, bedrooms, bathrooms, parking, furnished, address, offer, regularPrice, discountedPrice, images, latitude, longitude} = formData
+  const {
+    type,
+    name,
+    bedrooms,
+    bathrooms,
+    parking,
+    furnished,
+    address,
+    offer,
+    regularPrice,
+    discountedPrice,
+    images,
+    latitude,
+    longitude,
+  } = formData;
 
-  const auth= getAuth()
-  const navigate = useNavigate()
-  const isMounted = useRef(true)
+  const auth = getAuth();
+  const navigate = useNavigate();
+  const isMounted = useRef(true);
 
-  useEffect(()=>{
-    if(isMounted){
-      onAuthStateChanged(auth, (user)=>{
-        if(user){
-          setFormData({...formData, userRef: user.uid})
+  useEffect(() => {
+    if (isMounted) {
+      onAuthStateChanged(auth, (user) => {
+        if (user) {
+          setFormData({ ...formData, userRef: user.uid });
         } else {
-          navigate('/sign-in')
+          navigate('/sign-in');
         }
-      })
+      });
     }
     return () => {
-      isMounted.current = false
-    }
+      isMounted.current = false;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMounted])
+  }, [isMounted]);
 
   const onSubmit = async (e) => {
-    e.preventDefault()
+    e.preventDefault();
 
-    setLoading(true)
+    setLoading(true);
 
-    if(discountedPrice >= regularPrice){
-      setLoading(false)
-      toast.error("Discounted price must be less than regular price")
-      return
+    let foundLatitude;
+    let foundLongitude;
+
+    if (discountedPrice >= regularPrice) {
+      setLoading(false);
+      toast.error('Discounted price must be less than regular price');
+      return;
     }
 
-    if(images.length > 6){
-      setLoading(false)
-      toast.error("Max 6 images")
-      return
+    if (images.length > 6) {
+      setLoading(false);
+      toast.error('Max 6 images');
+      return;
     }
 
-    let geolocation = {}
-    let location
+    let geolocation = {};
+    let location;
 
-    if(geolocationEnabled){
+    if (geolocationEnabled) {
       const response = await fetch(
-        `https://maps.googleapis.com/maps/api/geocode/json?address=${address}&key=${process.env.REACT_APP_GEOCODE_API_KEY}`
-      )
+        `http://api.positionstack.com/v1/forward?access_key=${process.env.REACT_APP_POSITION_STACK_API_KEY}&query=${address}`
+      );
 
-      const data = await response.json()
+      const data = await response.json();
 
-      geolocation.lat = data.results[0]?.geometry.location.lat ?? 0
-      geolocation.lng = data.results[0]?.geometry.location.lng ?? 0
+      foundLatitude = data.data[0]?.latitude ?? 0;
+      foundLongitude = data.data[0]?.longitude ?? 0;
 
-      location = data.status === 'ZERO_RESULTS' ? undefined : data.results[0]?.formatted_address
+      geolocation.lat = foundLatitude;
+      geolocation.lng = foundLongitude;
 
-      if(location === undefined || location.includes("undefined")){
-        setLoading(false)
-        toast.error('Please enter a correct address')
-        return
+      location = data.data[0] ? data.data[0]?.label : undefined;
+
+      if (location === undefined || location.includes('undefined')) {
+        setLoading(false);
+        toast.error('Please enter a correct address');
+        return;
       }
+    } else {
+      geolocation.lat = latitude;
+      geolocation.lng = longitude;
     }
-    else {
-      geolocation.lat = latitude
-      geolocation.lng = longitude
-    }
+    // if(geolocationEnabled){
+    //   const response = await fetch(
+    //     `https://maps.googleapis.com/maps/api/geocode/json?address=${address}&key=${process.env.REACT_APP_GEOCODE_API_KEY}`
+    //   )
+
+    //   const data = await response.json()
+
+    //   geolocation.lat = data.results[0]?.geometry.location.lat ?? 0
+    //   geolocation.lng = data.results[0]?.geometry.location.lng ?? 0
+
+    //   location = data.status === 'ZERO_RESULTS' ? undefined : data.results[0]?.formatted_address
+
+    //   if(location === undefined || location.includes("undefined")){
+    //     setLoading(false)
+    //     toast.error('Please enter a correct address')
+    //     return
+    //   }
+    // }
+    // else {
+    //   geolocation.lat = latitude
+    //   geolocation.lng = longitude
+    // }
 
     // Store image in firebase
-    const storeImage = async (image) =>{
-      return new Promise((resolve, reject)=>{
-        const storage = getStorage()
-        const fileName = `${auth.currentUser.uid}-${image.name}-${uuidv4()}`
+    const storeImage = async (image) => {
+      return new Promise((resolve, reject) => {
+        const storage = getStorage();
+        const fileName = `${auth.currentUser.uid}-${image.name}-${uuidv4()}`;
 
-        const storageRef = ref(storage, 'images/' + fileName)
+        const storageRef = ref(storage, 'images/' + fileName);
 
-        const uploadTask = uploadBytesResumable(storageRef, image)
+        const uploadTask = uploadBytesResumable(storageRef, image);
 
         uploadTask.on(
           'state_changed',
           (snapshot) => {
             const progress =
-              (snapshot.bytesTransferred / snapshot.totalBytes) * 100
-            console.log('Upload is ' + progress + '% done')
+              (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            console.log('Upload is ' + progress + '% done');
             switch (snapshot.state) {
               case 'paused':
-                console.log('Upload is paused')
-                break
+                console.log('Upload is paused');
+                break;
               case 'running':
-                console.log('Upload is running')
-                break
+                console.log('Upload is running');
+                break;
               default:
-                break
+                break;
             }
           },
           (error) => {
-            reject(error)
+            reject(error);
           },
           () => {
             // Handle successful uploads on complete
             // For instance, get the download URL: https://firebasestorage.googleapis.com/...
             getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
-              resolve(downloadURL)
-            })
+              resolve(downloadURL);
+            });
           }
-        )
-      })
-    }
+        );
+      });
+    };
 
     const imgUrls = await Promise.all(
-      [...images].map((image)=>
-        storeImage(image))
-      ).catch(()=>{
-        setLoading(false)
-        toast.error('Images not uploaded')
-        return
-      })
-
+      [...images].map((image) => storeImage(image))
+    ).catch(() => {
+      setLoading(false);
+      toast.error('Images not uploaded');
+      return;
+    });
 
     const formDataCopy = {
       ...formData,
       imgUrls,
       geolocation,
-      timestamp: serverTimestamp()
-    }
+      timestamp: serverTimestamp(),
+      latitude: foundLatitude,
+      longitude: foundLongitude,
+    };
 
-    formDataCopy.location = address
-    delete formDataCopy.images
-    delete formDataCopy.address
-    !formDataCopy.offer && delete formDataCopy.discountedPrice
+    formDataCopy.location = address;
+    delete formDataCopy.images;
+    delete formDataCopy.address;
+    !formDataCopy.offer && delete formDataCopy.discountedPrice;
 
-    const docRef = await addDoc(collection(db, 'listings'), formDataCopy)
+    console.log('######', formDataCopy);
 
-    setLoading(false)
+    const docRef = await addDoc(collection(db, 'listings'), formDataCopy);
 
-    toast.success('Listing saved')
-    navigate(`/category/${formDataCopy.type}/${docRef.id}`)
-  }
+    setLoading(false);
+
+    toast.success('Listing saved');
+    navigate(`/category/${formDataCopy.type}/${docRef.id}`);
+  };
 
   const onMutate = (e) => {
-    let boolean = null
+    let boolean = null;
 
-    if(e.target.value === 'true'){
-      boolean = true
+    if (e.target.value === 'true') {
+      boolean = true;
     }
-    if(e.target.value === 'false'){
-      boolean = false
-    }
-
-    if(e.target.files) {
-      setFormData((prevState)=> (
-        {
-          ...prevState,
-          images: e.target.files
-        }
-      ))
+    if (e.target.value === 'false') {
+      boolean = false;
     }
 
-    if(!e.target.files){
+    if (e.target.files) {
       setFormData((prevState) => ({
         ...prevState,
-        [e.target.id] : boolean ?? e.target.value
-        //the line above sets the target id to the boolean variable defined above if it's a boolean, if not it sets to the value of the target
-      }))
+        images: e.target.files,
+      }));
     }
-  }
 
-  if(loading){
-    return <Spinner />
-  }
+    if (!e.target.files) {
+      setFormData((prevState) => ({
+        ...prevState,
+        [e.target.id]: boolean ?? e.target.value,
+        //the line above sets the target id to the boolean variable defined above if it's a boolean, if not it sets to the value of the target
+      }));
+    }
+  };
 
+  if (loading) {
+    return <Spinner />;
+  }
 
   return (
-    <div className="profile">
+    <div className='profile'>
       <header>
-        <p className="pageHeader">Create a Listing</p>
+        <p className='pageHeader'>Create a Listing</p>
       </header>
       <main>
         <form onSubmit={onSubmit}>
           <label className='formLabel'>Sell / Rent</label>
-          <div className="formButtons">
-            <button type='button' className={type === 'sale' ? 'formButtonActive' : 'formButton'} id='type' value='sale' onClick={onMutate}>Sell</button>
-            <button type='button' className={type === 'rent' ? 'formButtonActive' : 'formButton'} id='type' value='rent' onClick={onMutate}>Rent</button>
+          <div className='formButtons'>
+            <button
+              type='button'
+              className={type === 'sale' ? 'formButtonActive' : 'formButton'}
+              id='type'
+              value='sale'
+              onClick={onMutate}
+            >
+              Sell
+            </button>
+            <button
+              type='button'
+              className={type === 'rent' ? 'formButtonActive' : 'formButton'}
+              id='type'
+              value='rent'
+              onClick={onMutate}
+            >
+              Rent
+            </button>
           </div>
           <label className='formLabel'>Name</label>
           <input
@@ -228,7 +283,7 @@ function CreateListing() {
             minLength='10'
             required
           />
-                    <div className='formRooms flex'>
+          <div className='formRooms flex'>
             <div>
               <label className='formLabel'>Bedrooms</label>
               <input
@@ -283,7 +338,7 @@ function CreateListing() {
             </button>
           </div>
 
-                    <label className='formLabel'>Furnished</label>
+          <label className='formLabel'>Furnished</label>
           <div className='formButtons'>
             <button
               className={furnished ? 'formButtonActive' : 'formButton'}
@@ -309,7 +364,7 @@ function CreateListing() {
             </button>
           </div>
 
-                    <label className='formLabel'>Address</label>
+          <label className='formLabel'>Address</label>
           <textarea
             className='formInputAddress'
             type='text'
@@ -346,7 +401,7 @@ function CreateListing() {
             </div>
           )}
 
-        <label className='formLabel'>Offer</label>
+          <label className='formLabel'>Offer</label>
           <div className='formButtons'>
             <button
               className={offer ? 'formButtonActive' : 'formButton'}
@@ -422,7 +477,7 @@ function CreateListing() {
         </form>
       </main>
     </div>
-  )
+  );
 }
 
-export default CreateListing
+export default CreateListing;
